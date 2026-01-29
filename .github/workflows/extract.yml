@@ -1,0 +1,52 @@
+name: Extract 7z Archive
+
+on:
+  workflow_dispatch:
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install py7zr
+        run: pip install py7zr
+
+      - name: Ensure archive present (try repo then raw URL)
+        run: |
+          if [ ! -f "YASIRXT-JWT_API-main.7z" ]; then
+            echo "File not found at repo root. Attempting to download raw..."
+            curl -f -L -o YASIRXT-JWT_API-main.7z https://raw.githubusercontent.com/banquedesofia-beep/Tokenff/main/YASIRXT-JWT_API-main.7z || true
+          fi
+
+      - name: Extract archive
+        run: |
+          python - <<'PY'
+          from py7zr import SevenZipFile
+          import os, sys
+          archive = 'YASIRXT-JWT_API-main.7z'
+          outdir = 'extracted'
+          os.makedirs(outdir, exist_ok=True)
+          if not os.path.isfile(archive):
+              print(f"Archive {archive} not found")
+              sys.exit(0)
+          with SevenZipFile(archive, 'r') as archive_obj:
+              archive_obj.extractall(path=outdir)
+          print('Extraction complete')
+          PY
+
+      - name: Commit extracted files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add extracted || true
+          git commit -m "Add extracted files from YASIRXT-JWT_API-main.7z" || echo "No changes to commit"
+          git push origin HEAD:main
